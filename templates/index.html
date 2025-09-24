@@ -25,6 +25,10 @@
         background-color: #5c9c13;
         border: none;
       }
+	  .btn-track {
+        padding-left: 2rem;
+        padding-right: 2rem;
+      }
       .btn-primary:hover, .btn-success:hover {
         background-color: #4a8010;
       }
@@ -55,8 +59,40 @@
       .content-card {
         background-color: rgba(255, 255, 255, 0.9);
         border-radius: 15px;
-        padding: 2rem;
+        padding: 2.5rem 3rem;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      @media (max-width: 992px) {
+        .content-card {
+          padding: 2rem;
+        }
+
+        .tracking-frame {
+          min-height: 400px;
+        }
+      }
+
+      @media (max-width: 576px) {
+        body {
+          background-attachment: scroll;
+        }
+
+        .content-card {
+          padding: 1.5rem;
+        }
+
+        .tracking-frame {
+          min-height: 300px;
+        }
+
+        .logo img {
+          width: 220px;
+        }
+
+        .btn-track {
+          width: 100%;
+        }
       }
     </style>
   </head>
@@ -66,7 +102,7 @@
         <a href="{{ url_for('index') }}">
           <img src="{{ url_for('static', filename='logo-slg-strip.svg') }}" alt="Silverlake Logo">
         </a>
-
+     </div>
       <div class="content-card">
         <h1 class="mb-4 text-center">Silverlake Tracking</h1>
         <p class="text-center mb-4">Please enter below the Silverlake Tracking Number from your delivery to view the live tracking </p>
@@ -76,13 +112,15 @@
           </div>
         {% endif %}
 
-        <form method="post" class="row g-3 justify-content-center mb-4">
-          <div class="col-md-6">
+        <form method="post" action="{{ url_for('index') }}" class="row g-3 justify-content-center mb-4">
+          <div class="col-12 col-md-6">
             <label for="tracking_number" class="form-label">Tracking Number</label>
-            <input type="text" class="form-control" id="tracking_number" name="tracking_number" placeholder="e.g. 3Pv4xySLKiNO5zs" value="{{ tracking_number }}" required>
+            <input type="text" class="form-control" id="tracking_number" name="tracking_number" placeholder="e.g. 3Pv4xyEKViNO5zs" value="{{ tracking_number }}" required>
           </div>
-          <div class="col-auto align-self-end">
-            <button type="submit" class="btn btn-success">Track</button>
+          <div class="col-12 col-md-auto align-self-end text-center text-md-start">
+            <div class="d-grid d-md-inline-block">
+              <button type="submit" class="btn btn-success btn-track">Track</button>
+            </div>
           </div>
         </form>
 
