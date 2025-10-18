@@ -111,11 +111,21 @@
             {{ error_message }}
           </div>
         {% endif %}
-
+        {% if reference_error_message %}
+          <div class="alert alert-warning" role="alert">
+            {{ reference_error_message }}
+          </div>
+        {% endif %}
+		  
         <form method="post" action="{{ url_for('index') }}" class="row g-3 justify-content-center mb-4">
           <div class="col-12 col-md-6">
             <label for="tracking_number" class="form-label">Tracking Number</label>
-            <input type="text" class="form-control" id="tracking_number" name="tracking_number" placeholder="e.g. 3Pv4xyEKBiNO5zs" value="{{ tracking_number }}" required>
+            <input type="text" class="form-control" id="tracking_number" name="tracking_number" placeholder="e.g. 3Pv4xyEKBiNO5zs" value="{{ tracking_number }}">
+          </div>
+          <div class="col-12 col-md-6">
+            <label for="order_reference" class="form-label">Order Reference</label>
+            <input type="text" class="form-control" id="order_reference" name="order_reference" placeholder="e.g. SLG-123456" value="{{ order_reference }}">
+            <div class="form-text">Enter either a tracking number or an order reference.</div>
           </div>
           <div class="col-12 col-md-auto align-self-end text-center text-md-start">
             <div class="d-grid d-md-inline-block">
@@ -123,6 +133,12 @@
             </div>
           </div>
         </form>
+
+        {% if resolved_tracking_number %}
+          <div class="alert alert-success text-center" role="alert">
+            Order reference <strong>{{ order_reference }}</strong> resolved to tracking number <strong>{{ resolved_tracking_number }}</strong>.
+          </div>
+        {% endif %}
 
         {% if tracking_url %}
           <h2 class="mb-3 text-center">Tracking Preview</h2>
