@@ -57,7 +57,7 @@ def _fetch_tracking_number_from_reference(order_reference: str) -> tuple[Optiona
     if not MAXOPTRA_API_KEY:
         return None, "Tracking by reference is not configured."
 
-   encoded_reference = quote(order_reference, safe="")
+    encoded_reference = quote(order_reference, safe="")
 
     try:
         response = requests.get(
