@@ -15,7 +15,7 @@ TRACKING_BASE_URL = "https://orderstrack.com/"
 TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 
 MAXOPTRA_WIDGET_ENDPOINT = (
-    "https://silverlake.maxoptra.com/api/v6/widget/orders/{reference}/widget"
+    "https://silverlake.maxoptra.com/api/v6/orders/{reference}/widget"
 )
 MAXOPTRA_API_KEY = os.environ.get(
     "MAXOPTRA_API_KEY", "Ua85Vj4ucIlzUa7qk5Yb6M55qfDXPHoGhUbfCQpmgr76wKntTm"
