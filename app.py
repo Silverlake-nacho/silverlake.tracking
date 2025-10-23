@@ -47,6 +47,13 @@ def _normalise_key(key: str) -> str:
     return re.sub(r"[^a-z0-9]", "", key.lower())
 
 
+def _normalise_order_reference(value: str) -> str:
+    """Return ``value`` with symbol separators converted to single spaces."""
+
+    cleaned = re.sub(r"[\W_]+", " ", value, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def _find_string_value(payload: Any, target_keys: set[str]) -> Optional[str]:
     """Recursively find the first string value whose key matches ``target_keys``."""
 
@@ -437,6 +444,8 @@ def _build_context(
 
     tracking_number: str = raw_tracking_number.strip() if raw_tracking_number else ""
     order_reference: str = raw_order_reference.strip() if raw_order_reference else ""
+    if order_reference:
+        order_reference = _normalise_order_reference(order_reference)
     tracking_url: Optional[str] = None
     error_message: Optional[str] = None
     reference_error_message: Optional[str] = None
