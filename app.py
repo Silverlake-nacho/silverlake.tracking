@@ -48,10 +48,11 @@ def _normalise_key(key: str) -> str:
 
 
 def _normalise_order_reference(value: str) -> str:
-    """Return ``value`` with symbol separators converted to single spaces."""
+    """Return ``value`` in uppercase with symbol separators collapsed."""
 
     cleaned = re.sub(r"[\W_]+", " ", value, flags=re.UNICODE)
-    return re.sub(r"\s+", " ", cleaned).strip()
+    canonical = re.sub(r"\s+", " ", cleaned).strip()
+    return canonical.upper()
 
 
 def _find_string_value(payload: Any, target_keys: set[str]) -> Optional[str]:
@@ -484,7 +485,6 @@ def _build_context(
         else:
             error_message = "Please enter a tracking number or order reference."
 
-    form_tracking_number = "" if submission_attempted else tracking_number
     form_order_reference = "" if submission_attempted else order_reference
 
     return {
@@ -496,7 +496,6 @@ def _build_context(
         "resolved_tracking_number": resolved_tracking_number,
         "proof_of_delivery": proof_of_delivery,
         "proof_of_delivery_error": proof_of_delivery_error,
-        "form_tracking_number": form_tracking_number,
         "form_order_reference": form_order_reference,
         "submission_attempted": submission_attempted,
     }
