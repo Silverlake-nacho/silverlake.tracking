@@ -47,6 +47,23 @@
         min-height: 600px;
         width: 100%;
       }
+      .pod-section {
+        border-top: 2px solid rgba(92, 156, 19, 0.25);
+        margin-top: 3rem;
+        padding-top: 2.5rem;
+      }
+      .pod-signature {
+        max-height: 320px;
+        object-fit: contain;
+        border: 1px solid rgba(92, 156, 19, 0.4);
+        border-radius: 10px;
+        background-color: #fff;
+        padding: 1rem;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      }
+      .pod-details .list-group-item {
+        background-color: rgba(255, 255, 255, 0.85);
+      }
       .logo {
         text-align: center;
         margin-bottom: 20px;
@@ -148,6 +165,50 @@
         {% else %}
           <div class="text-center text-muted">
             <em>Submit a tracking number to see the delivery status here.</em>
+          </div>
+        {% endif %}
+
+        {% if proof_of_delivery %}
+          <div class="pod-section">
+            <h2 class="mb-4 text-center">Proof of delivery</h2>
+            {% if proof_of_delivery.signature_url %}
+              <div class="text-center mb-4">
+                <img src="{{ proof_of_delivery.signature_url }}" alt="Signature" class="img-fluid pod-signature">
+              </div>
+            {% elif proof_of_delivery.signature_image %}
+              <div class="text-center mb-4">
+                <img src="{{ proof_of_delivery.signature_image }}" alt="Signature" class="img-fluid pod-signature">
+              </div>
+            {% endif %}
+
+            {% if proof_of_delivery.details %}
+              <div class="row justify-content-center">
+                <div class="col-12 col-md-8 col-lg-6">
+                  <ul class="list-group pod-details shadow-sm">
+                    {% for label, value in proof_of_delivery.details %}
+                      <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <span class="fw-semibold me-3">{{ label }}</span>
+                        <span class="text-end">{{ value }}</span>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            {% endif %}
+
+            {% if proof_of_delivery.raw %}
+              <details class="mt-4">
+                <summary>Show raw response</summary>
+                <pre class="bg-light p-3 border rounded small">{{ proof_of_delivery.raw | tojson(indent=2) }}</pre>
+              </details>
+            {% endif %}
+          </div>
+        {% elif proof_of_delivery_error %}
+          <div class="pod-section">
+            <h2 class="mb-3 text-center">Proof of delivery</h2>
+            <div class="alert alert-info text-center" role="alert">
+              {{ proof_of_delivery_error }}
+            </div>
           </div>
         {% endif %}
       </div>
