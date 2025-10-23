@@ -1,3 +1,7 @@
+app.py
++158
+-7
+
 from __future__ import annotations
 
 import os
@@ -14,8 +18,13 @@ app = Flask(__name__)
 TRACKING_BASE_URL = "https://orderstrack.com/"
 TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 
+# ``MAXOPTRA_BASE_URL`` should point at the customer's Maxoptra tenant, e.g.
+# ``https://yourmaxoptraaccount.maxoptra.com``.
+MAXOPTRA_BASE_URL = os.environ.get(
+    "MAXOPTRA_BASE_URL", "https://widgets.maxoptra.com"
+).rstrip("/")
 MAXOPTRA_WIDGET_ENDPOINT = (
-    "https://silverlake.maxoptra.com/api/v6/orders/{reference}/widget"
+    f"{MAXOPTRA_BASE_URL}/api/v6/orders/{{reference}}/widget"
 )
 MAXOPTRA_API_KEY = os.environ.get(
     "MAXOPTRA_API_KEY", "Ua85Vj4ucIlzUa7qk5Yb6M55qfDXPHoGhUbfCQpmgr76wKntTm"
@@ -28,6 +37,8 @@ TRACKING_NUMBER_KEYS = (
     "tracking",
     "consignmentNumber",
     "consignment_number",
+    "trackingId",
+    "tracking_id",
 )
 
 
@@ -57,27 +68,60 @@ def _fetch_tracking_number_from_reference(order_reference: str) -> tuple[Optiona
     if not MAXOPTRA_API_KEY:
         return None, "Tracking by reference is not configured."
 
+    if not MAXOPTRA_BASE_URL:
+        return None, (
+            "Tracking by reference is not configured correctly. Please set the "
+            "Maxoptra base URL."
+        )
+
     encoded_reference = quote(order_reference, safe="")
 
     try:
         response = requests.get(
-            MAXOPTRA_WIDGET_ENDPOINT.format(reference=order_reference),
+            MAXOPTRA_WIDGET_ENDPOINT.format(reference=encoded_reference),
             headers={
+                "Api-Key": MAXOPTRA_API_KEY,
                 "Authorization": f"Bearer {MAXOPTRA_API_KEY}",
                 "Accept": "application/json",
             },
             timeout=10,
         )
-    except RequestException:
-        return None, "Unable to contact the tracking service. Please try again later."
+    except RequestException as exc:
+        app.logger.warning(
+            "Error contacting Maxoptra for reference %s: %s", order_reference, exc
+        )
+        detail = f"Unable to contact the tracking service. Please try again later. (Technical detail: {exc})"
+        return None, detail
 
     if response.status_code == 404:
         return None, "No delivery was found for that reference."
     if response.status_code in {401, 403}:
-        return None, "The tracking service rejected the request. Please contact support."
+        body_preview = response.text[:200]
+        app.logger.warning(
+            "Maxoptra returned %s for reference %s: %s",
+            response.status_code,
+            order_reference,
+            body_preview,
+        )
+        return (
+            None,
+            "The tracking service rejected the request (HTTP {code}). This can happen if "
+            "the API key is invalid, the Maxoptra account URL is incorrect, or network "
+            "access to Maxoptra is blocked. "
+            "Please contact support.".format(code=response.status_code),
+        )
     if response.status_code >= 500:
+        app.logger.warning(
+            "Maxoptra returned %s for reference %s", response.status_code, order_reference
+        )
         return None, "The tracking service is temporarily unavailable. Please try again later."
     if not response.ok:
+        app.logger.warning(
+            "Unexpected Maxoptra status %s for reference %s: %s",
+            response.status_code,
+            order_reference,
+            response.text[:200],
+        )
         return None, "Unexpected response from the tracking service."
 
     try:
