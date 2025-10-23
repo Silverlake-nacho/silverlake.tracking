@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import os
 import re
+from datetime import datetime
 from typing import Any, Optional
 from urllib.parse import quote
 
 import requests
 from flask import Flask, render_template, request
 from requests import RequestException
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
@@ -88,6 +90,40 @@ def _coerce_data_uri(value: str) -> Optional[str]:
     return None
 
 
+def _parse_uk_datetime(timestamp: str) -> Optional[tuple[str, str]]:
+    """Return the date and time in UK timezone for ``timestamp`` if possible."""
+
+    value = timestamp.strip()
+    if not value:
+        return None
+
+    cleaned = value.replace("Z", "+00:00")
+
+    try:
+        parsed = datetime.fromisoformat(cleaned)
+    except ValueError:
+        for fmt in (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%d/%m/%Y %H:%M:%S",
+            "%d/%m/%Y %H:%M",
+        ):
+            try:
+                parsed = datetime.strptime(value, fmt)
+                parsed = parsed.replace(tzinfo=ZoneInfo("UTC"))
+                break
+            except ValueError:
+                continue
+        else:
+            return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=ZoneInfo("UTC"))
+
+    uk_time = parsed.astimezone(ZoneInfo("Europe/London"))
+    return uk_time.strftime("%d/%m/%Y"), uk_time.strftime("%H:%M")
+
+
 def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
     """Extract displayable proof-of-delivery information from ``payload``."""
 
@@ -135,6 +171,7 @@ def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
             "recipientname",
             "receiver",
             "receivername",
+            "signatoryname",
         },
     )
     signed_at = _find_string_value(
@@ -147,6 +184,7 @@ def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
             "deliveredat",
             "deliveredon",
             "datetime",
+            "signaturetime",
         },
     )
     status = _find_string_value(
@@ -161,13 +199,8 @@ def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
     detail_pairs: list[tuple[str, str]] = []
     seen_keys = set()
 
-    for label, value in (
-        ("Signed by", signed_by),
-        ("Signed at", signed_at),
-        ("Status", status),
-    ):
-        if value:
-            detail_pairs.append((label, value))
+    if status:
+        detail_pairs.append(("Status", status))
 
     if isinstance(pod_body, dict):
         for key, value in pod_body.items():
@@ -180,6 +213,21 @@ def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
                 "signaturepayload",
                 "proofimage",
                 "signaturelink",
+                "signedby",
+                "signatory",
+                "signatoryname",
+                "recipient",
+                "recipientname",
+                "receiver",
+                "receivername",
+                "signedat",
+                "completedat",
+                "completedtime",
+                "timestamp",
+                "deliveredat",
+                "deliveredon",
+                "datetime",
+                "signaturetime",
             }:
                 continue
             if isinstance(value, (str, int, float)):
@@ -191,32 +239,23 @@ def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
     if not detail_pairs and not signature_url and not signature_image:
         return None
 
+    signature_date = None
+    signature_time = None
+
+    if signed_at:
+        formatted = _parse_uk_datetime(signed_at)
+        if formatted:
+            signature_date, signature_time = formatted
+
     return {
         "signature_url": signature_url,
         "signature_image": signature_image,
         "details": detail_pairs,
         "raw": payload,
+        "signatory_name": signed_by,
+        "signature_date": signature_date,
+        "signature_time": signature_time,
     }
-
-
-def _extract_tracking_number(payload: Any) -> Optional[str]:
-    """Recursively search for a plausible tracking number within an API payload."""
-
-    if isinstance(payload, dict):
-        for key, value in payload.items():
-            if key in TRACKING_NUMBER_KEYS and isinstance(value, str):
-                candidate = value.strip()
-                if candidate:
-                    return candidate
-            candidate = _extract_tracking_number(value)
-            if candidate:
-                return candidate
-    elif isinstance(payload, list):
-        for item in payload:
-            candidate = _extract_tracking_number(item)
-            if candidate:
-                return candidate
-    return None
 
 
 def _fetch_tracking_number_from_reference(order_reference: str) -> tuple[Optional[str], Optional[str]]:
@@ -416,6 +455,9 @@ def _build_context(
         else:
             error_message = "Please enter a tracking number or order reference."
 
+    form_tracking_number = "" if submission_attempted else tracking_number
+    form_order_reference = "" if submission_attempted else order_reference
+
     return {
         "tracking_number": tracking_number,
         "order_reference": order_reference,
@@ -425,6 +467,9 @@ def _build_context(
         "resolved_tracking_number": resolved_tracking_number,
         "proof_of_delivery": proof_of_delivery,
         "proof_of_delivery_error": proof_of_delivery_error,
+        "form_tracking_number": form_tracking_number,
+        "form_order_reference": form_order_reference,
+        "submission_attempted": submission_attempted,
     }
 
 
