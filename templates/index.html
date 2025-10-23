@@ -173,6 +173,15 @@
         {% if proof_of_delivery %}
           <div class="pod-section">
             <h2 class="mb-4 text-center">Proof of delivery</h2>
+            {% if proof_of_delivery.signature_url %}
+              <div class="text-center mb-4">
+                <img src="{{ proof_of_delivery.signature_url }}" alt="Signature" class="img-fluid pod-signature">
+              </div>
+            {% elif proof_of_delivery.signature_image %}
+              <div class="text-center mb-4">
+                <img src="{{ proof_of_delivery.signature_image }}" alt="Signature" class="img-fluid pod-signature">
+              </div>
+            {% endif %}
             {% if proof_of_delivery.signatory_name or proof_of_delivery.signature_date or proof_of_delivery.signature_time %}
               <div class="text-center mb-4">
                 {% if proof_of_delivery.signatory_name %}
@@ -188,15 +197,6 @@
                     {% endif %}
                   </div>
                 {% endif %}
-              </div>
-            {% endif %}
-            {% if proof_of_delivery.signature_url %}
-              <div class="text-center mb-4">
-                <img src="{{ proof_of_delivery.signature_url }}" alt="Signature" class="img-fluid pod-signature">
-              </div>
-            {% elif proof_of_delivery.signature_image %}
-              <div class="text-center mb-4">
-                <img src="{{ proof_of_delivery.signature_image }}" alt="Signature" class="img-fluid pod-signature">
               </div>
             {% endif %}
 
