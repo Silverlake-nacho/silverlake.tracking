@@ -17,7 +17,7 @@ TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 # ``MAXOPTRA_BASE_URL`` should point at the customer's Maxoptra tenant, e.g.
 # ``https://yourmaxoptraaccount.maxoptra.com``.
 MAXOPTRA_BASE_URL = os.environ.get(
-    "MAXOPTRA_BASE_URL", "https://widgets.maxoptra.com"
+    "MAXOPTRA_BASE_URL", "https://silverlake.maxoptra.com"
 ).rstrip("/")
 MAXOPTRA_WIDGET_ENDPOINT = (
     f"{MAXOPTRA_BASE_URL}/api/v6/orders/{{reference}}/widget"
