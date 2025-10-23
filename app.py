@@ -1,7 +1,3 @@
-app.py
-+158
--7
-
 from __future__ import annotations
 
 import os
