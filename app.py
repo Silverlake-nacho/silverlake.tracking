@@ -258,6 +258,26 @@ def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
     }
 
 
+def _extract_tracking_number(payload: Any) -> Optional[str]:
+    """Recursively search for a plausible tracking number within an API payload."""
+
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in TRACKING_NUMBER_KEYS and isinstance(value, str):
+                candidate = value.strip()
+                if candidate:
+                    return candidate
+            candidate = _extract_tracking_number(value)
+            if candidate:
+                return candidate
+    elif isinstance(payload, list):
+        for item in payload:
+            candidate = _extract_tracking_number(item)
+            if candidate:
+                return candidate
+    return None
+
+
 def _fetch_tracking_number_from_reference(order_reference: str) -> tuple[Optional[str], Optional[str]]:
     """Retrieve the tracking number associated with ``order_reference`` from Maxoptra."""
 
