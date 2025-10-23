@@ -62,7 +62,10 @@ def _fetch_tracking_number_from_reference(order_reference: str) -> tuple[Optiona
     try:
         response = requests.get(
             MAXOPTRA_WIDGET_ENDPOINT.format(reference=order_reference),
-            headers={"Api-Key": MAXOPTRA_API_KEY, "Accept": "application/json"},
+            headers={
+                "Authorization": f"Bearer {MAXOPTRA_API_KEY}",
+                "Accept": "application/json",
+            },
             timeout=10,
         )
     except RequestException:
