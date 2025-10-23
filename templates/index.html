@@ -136,14 +136,12 @@
 		  
         <form method="post" action="{{ url_for('index') }}" class="row g-3 justify-content-center mb-4">
           <div class="col-12 col-md-6">
-
-          </div>
-          <div class="col-12 col-md-6">
             <label for="order_reference" class="form-label">Order Reference</label>
             <input type="text" class="form-control" id="order_reference" name="order_reference" placeholder="e.g. XX 373456 (Route + Order Number)" value="{{ form_order_reference }}">
             <div class="form-text">Enter either a tracking number or an order reference.</div>
           </div> 
-          <div class="col-12 col-md-auto align-self-end text-center text-md-start">
+          <!--<div class="col-12 col-md-auto align-self-end text-center text-md-start"> -->
+			<div class="col-12 col-md-6">
             <div class="d-grid d-md-inline-block">
               <button type="submit" class="btn btn-success btn-track">Track</button>
             </div>
