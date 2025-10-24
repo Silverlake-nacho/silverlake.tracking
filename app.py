@@ -460,7 +460,7 @@ def _build_context(
                 tracking_url = f"{TRACKING_BASE_URL}{tracking_number}"
             else:
                 error_message = (
-                    "Tracking numbers may only contain letters and numbers. "
+                    "Order references may only contain letters and numbers. "
                     "Please try again."
                 )
             if order_reference:
@@ -476,14 +476,14 @@ def _build_context(
                 tracking_url = f"{TRACKING_BASE_URL}{resolved_tracking_number}"
             elif resolved_tracking_number:
                 reference_error_message = (
-                    "The retrieved tracking number appears to be invalid. Please contact support."
+                    "The retrieved order reference appears to be invalid. Please contact support."
                 )
                 resolved_tracking_number = None
             proof_of_delivery, proof_of_delivery_error = _fetch_proof_of_delivery(
                 order_reference
             )
         else:
-            error_message = "Please enter a tracking number or order reference."
+            error_message = "Please enter an order reference."
 
     form_order_reference = "" if submission_attempted else order_reference
 
