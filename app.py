@@ -48,10 +48,9 @@ def _normalise_key(key: str) -> str:
 
 
 def _normalise_order_reference(value: str) -> str:
-    """Return ``value`` in uppercase with symbol separators collapsed."""
+    """Return ``value`` in uppercase with whitespace collapsed."""
 
-    cleaned = re.sub(r"[\W_]+", " ", value, flags=re.UNICODE)
-    canonical = re.sub(r"\s+", " ", cleaned).strip()
+    canonical = re.sub(r"\s+", " ", value, flags=re.UNICODE).strip()
     return canonical.upper()
 
 
