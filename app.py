@@ -701,8 +701,79 @@ def uploaded_file(filename: str):
 def admin():
     if request.method == "POST":
         csv_file = request.files.get("csv_file")
-        if not csv_file or not csv_file.filename:
-            flash("Please choose a CSV file.", "danger")
+        uploaded_pdfs_by_tracking = {}
+        uploaded_pdf_count = 0
+        skipped_pdf_name_count = 0
+
+        for file_obj in request.files.getlist("pdf_files"):
+            if not file_obj or not file_obj.filename:
+                continue
+            if not _is_allowed_pdf(file_obj.filename):
+                continue
+
+            stem = Path(file_obj.filename).stem
+            canonical = _canonical_tracking_number(stem)
+            if not canonical:
+                skipped_pdf_name_count += 1
+                continue
+
+            saved_name = _save_pdf_for_tracking(canonical, file_obj)
+            if saved_name:
+                uploaded_pdfs_by_tracking[canonical] = saved_name
+                uploaded_pdf_count += 1
+
+        has_csv_upload = bool(csv_file and csv_file.filename)
+        if not has_csv_upload and not uploaded_pdfs_by_tracking:
+            flash(
+                "Please choose a CSV file or upload at least one PDF named like KN1234567-1.pdf.",
+                "danger",
+            )
+            return redirect(url_for("admin"))
+
+        if not has_csv_upload:
+            linked_to_existing = 0
+            created_pdf_only = 0
+
+            with _get_db() as conn:
+                for tracking_number, pdf_filename in uploaded_pdfs_by_tracking.items():
+                    existing = conn.execute(
+                        "SELECT tracking_number FROM deliveries WHERE tracking_number = ?",
+                        (tracking_number,),
+                    ).fetchone()
+
+                    now_iso = datetime.utcnow().isoformat(timespec="seconds")
+                    if existing:
+                        conn.execute(
+                            """
+                            UPDATE deliveries
+                            SET pdf_filename = ?, updated_at = ?
+                            WHERE tracking_number = ?
+                            """,
+                            (pdf_filename, now_iso, tracking_number),
+                        )
+                        linked_to_existing += 1
+                    else:
+                        conn.execute(
+                            """
+                            INSERT INTO deliveries (
+                                tracking_number, job_no_item, order_ref_no, date_added, col_date, qty,
+                                del_cust_name, del_addr1, del_postcode, del_date, job_status,
+                                latest_tracking_event_datetime, latest_tracking_event_type,
+                                tracking_events, pdf_filename, raw_row_json, updated_at
+                            ) VALUES (?, ?, '', '', '', '', '', '', '', '', '', '', '', '', ?, '{}', ?)
+                            """,
+                            (tracking_number, tracking_number[2:], pdf_filename, now_iso),
+                        )
+                        created_pdf_only += 1
+
+                conn.commit()
+
+            flash(
+                f"PDF upload complete. Saved {uploaded_pdf_count} file(s): linked {linked_to_existing} existing delivery record(s), "
+                f"created {created_pdf_only} PDF-only record(s). "
+                f"Skipped {skipped_pdf_name_count} file(s) with unsupported filename format.",
+                "success",
+            )
             return redirect(url_for("admin"))
 
         raw_csv = csv_file.stream.read()
@@ -735,21 +806,6 @@ def admin():
         inserted = 0
         updated = 0
         skipped = 0
-        uploaded_pdf_count = 0
-
-        uploaded_pdfs_by_tracking = {}
-        for file_obj in request.files.getlist("pdf_files"):
-            if not file_obj or not file_obj.filename:
-                continue
-            if not _is_allowed_pdf(file_obj.filename):
-                continue
-            stem = Path(file_obj.filename).stem
-            canonical = _canonical_tracking_number(stem)
-            if canonical:
-                saved_name = _save_pdf_for_tracking(canonical, file_obj)
-                if saved_name:
-                    uploaded_pdfs_by_tracking[canonical] = saved_name
-                    uploaded_pdf_count += 1
 
         with _get_db() as conn:
             for row in reader:
