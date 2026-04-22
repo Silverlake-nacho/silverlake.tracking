@@ -108,6 +108,27 @@ def _is_allowed_pdf(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_PDF_EXTENSIONS
 
 
+def _decode_csv_upload(raw_bytes: bytes) -> tuple[str, str]:
+    """Decode uploaded CSV bytes trying common spreadsheet encodings."""
+
+    encodings = [
+        "utf-8-sig",
+        "utf-8",
+        "cp1252",
+        "latin-1",
+        "utf-16",
+        "utf-16-le",
+        "utf-16-be",
+    ]
+
+    for encoding in encodings:
+        try:
+            return raw_bytes.decode(encoding), encoding
+        except UnicodeDecodeError:
+            continue
+
+    raise UnicodeDecodeError("csv", b"", 0, 1, "unable to decode CSV")
+
 def _canonical_tracking_number(value: str) -> Optional[str]:
     match = LOCAL_TRACKING_PATTERN.fullmatch(value.strip())
     if not match:
@@ -560,6 +581,8 @@ def _lookup_local_delivery(tracking_or_ref: str) -> Optional[dict[str, Any]]:
     }
 
 
+
+
 def _build_context(
     raw_tracking_number: str | None,
     raw_order_reference: str | None,
@@ -671,11 +694,31 @@ def admin():
             flash("Please choose a CSV file.", "danger")
             return redirect(url_for("admin"))
 
+        raw_csv = csv_file.stream.read()
+
         try:
-            decoded_lines = csv_file.stream.read().decode("utf-8-sig").splitlines()
-            reader = csv.DictReader(decoded_lines)
+            csv_text, detected_encoding = _decode_csv_upload(raw_csv)
         except UnicodeDecodeError:
-            flash("The CSV file must be UTF-8 encoded.", "danger")
+            flash(
+                "The CSV file encoding could not be detected. Please save it as UTF-8, ANSI, or UTF-16 and try again.",
+                "danger",
+            )
+            return redirect(url_for("admin"))
+
+        lines = csv_text.splitlines()
+        if not lines:
+            flash("The CSV file is empty.", "danger")
+            return redirect(url_for("admin"))
+
+        sample = "\n".join(lines[:10])
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
+        except csv.Error:
+            dialect = csv.excel
+
+        reader = csv.DictReader(lines, dialect=dialect)
+        if not reader.fieldnames:
+            flash("The CSV headers could not be read.", "danger")
             return redirect(url_for("admin"))
 
         inserted = 0
@@ -775,7 +818,7 @@ def admin():
             conn.commit()
 
         flash(
-            f"CSV processed. Added {inserted}, updated {updated}, skipped {skipped}. "
+            f"CSV processed using {detected_encoding}. Added {inserted}, updated {updated}, skipped {skipped}. "
             f"Matched {uploaded_pdf_count} PDF file(s) by filename.",
             "success",
         )
@@ -820,7 +863,6 @@ def admin_logout():
 
 
 _ensure_storage()
-
 
 if __name__ == "__main__":
     app.run(debug=True)
