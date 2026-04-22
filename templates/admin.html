@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin - Silverlake Tracking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-light">
+    <div class="container py-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Tracking Admin</h1>
+        <form method="post" action="{{ url_for('admin_logout') }}">
+          <button class="btn btn-outline-secondary">Logout</button>
+        </form>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="h5">Upload CSV and POD PDFs</h2>
+          <p class="text-muted mb-3">Tracking number is generated automatically as <strong>KN + Job No/Item</strong>.
+            Optional PDF files are auto-matched when their filename equals the tracking number (for example, <code>KN2437911-1.pdf</code> or <code>KN2437911_1.pdf</code>).</p>
+
+          <form method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label class="form-label" for="csv_file">CSV file</label>
+              <input class="form-control" id="csv_file" name="csv_file" type="file" accept=".csv" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="pdf_files">POD PDFs (optional, multiple)</label>
+              <input class="form-control" id="pdf_files" name="pdf_files" type="file" accept="application/pdf" multiple>
+            </div>
+            <button class="btn btn-success" type="submit">Upload Data</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h5">Latest Imported Deliveries</h2>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>Tracking Number</th>
+                  <th>Job No/Item</th>
+                  <th>Order Ref</th>
+                  <th>Customer</th>
+                  <th>Delivery Date</th>
+                  <th>Status</th>
+                  <th>POD</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for delivery in deliveries %}
+                  <tr>
+                    <td>{{ delivery.tracking_number }}</td>
+                    <td>{{ delivery.job_no_item }}</td>
+                    <td>{{ delivery.order_ref_no }}</td>
+                    <td>{{ delivery.del_cust_name }}</td>
+                    <td>{{ delivery.del_date }}</td>
+                    <td>{{ delivery.job_status }}</td>
+                    <td>
+                      {% if delivery.pdf_filename %}
+                        <a href="{{ url_for('uploaded_file', filename=delivery.pdf_filename) }}" target="_blank" rel="noopener">View PDF</a>
+                      {% else %}
+                        <span class="text-muted">No PDF</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ delivery.updated_at }}</td>
+                  </tr>
+                {% else %}
+                  <tr>
+                    <td colspan="8" class="text-center text-muted">No deliveries imported yet.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
