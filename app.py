@@ -35,7 +35,18 @@ TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 LOCAL_TRACKING_PATTERN = re.compile(r"^KN\s*([0-9]+)\s*[/_-]\s*([0-9]+)$", re.IGNORECASE)
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = Path(os.environ.get("TRACKING_DATA_DIR", BASE_DIR / "data")).resolve()
+
+
+def _default_data_dir() -> Path:
+    """Return a storage directory that survives Render deploys when possible."""
+
+    render_data_root = Path("/var/data")
+    if os.environ.get("RENDER") and render_data_root.exists():
+        return render_data_root / "silverlake-tracking"
+    return BASE_DIR / "data"
+
+
+DATA_DIR = Path(os.environ.get("TRACKING_DATA_DIR", _default_data_dir())).resolve()
 UPLOAD_DIR = DATA_DIR / "pod_uploads"
 DB_PATH = DATA_DIR / "tracking.db"
 ALLOWED_PDF_EXTENSIONS = {"pdf"}
