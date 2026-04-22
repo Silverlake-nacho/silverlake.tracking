@@ -1,20 +1,47 @@
 from __future__ import annotations
 
+import csv
+import json
 import os
 import re
+import sqlite3
 from datetime import datetime
+from functools import wraps
+from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import quote
 
 import requests
-from flask import Flask, render_template, request
+from flask import (
+    Flask,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
 from requests import RequestException
+from werkzeug.utils import secure_filename
 from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-secret")
 
 TRACKING_BASE_URL = "https://orderstrack.com/"
 TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
+LOCAL_TRACKING_PATTERN = re.compile(r"^KN\s*([0-9]+)\s*[/_-]\s*([0-9]+)$", re.IGNORECASE)
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+UPLOAD_DIR = DATA_DIR / "pod_uploads"
+DB_PATH = DATA_DIR / "tracking.db"
+ALLOWED_PDF_EXTENSIONS = {"pdf"}
+
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "silverlake-admin")
 
 # ``MAXOPTRA_BASE_URL`` should point at the customer's Maxoptra tenant, e.g.
 # ``https://yourmaxoptraaccount.maxoptra.com``.
@@ -39,6 +66,75 @@ TRACKING_NUMBER_KEYS = (
     "trackingId",
     "tracking_id",
 )
+
+
+def _ensure_storage() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS deliveries (
+                tracking_number TEXT PRIMARY KEY,
+                job_no_item TEXT NOT NULL,
+                order_ref_no TEXT,
+                date_added TEXT,
+                col_date TEXT,
+                qty TEXT,
+                del_cust_name TEXT,
+                del_addr1 TEXT,
+                del_postcode TEXT,
+                del_date TEXT,
+                job_status TEXT,
+                latest_tracking_event_datetime TEXT,
+                latest_tracking_event_type TEXT,
+                tracking_events TEXT,
+                pdf_filename TEXT,
+                raw_row_json TEXT,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.commit()
+
+
+def _get_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _is_allowed_pdf(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_PDF_EXTENSIONS
+
+
+def _canonical_tracking_number(value: str) -> Optional[str]:
+    match = LOCAL_TRACKING_PATTERN.fullmatch(value.strip())
+    if not match:
+        return None
+    return f"KN{match.group(1)}/{match.group(2)}"
+
+
+def _save_pdf_for_tracking(tracking_number: str, incoming_file: Any) -> Optional[str]:
+    filename = secure_filename(incoming_file.filename or "")
+    if not filename or not _is_allowed_pdf(filename):
+        return None
+
+    extension = filename.rsplit(".", 1)[1].lower()
+    safe_tracking = secure_filename(tracking_number)
+    target_name = f"{safe_tracking}.{extension}"
+    incoming_file.save(UPLOAD_DIR / target_name)
+    return target_name
+
+
+def _login_required(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        if not session.get("admin_logged_in"):
+            return redirect(url_for("admin_login", next=request.path))
+        return func(*args, **kwargs)
+
+    return wrapped
 
 
 def _normalise_key(key: str) -> str:
@@ -434,6 +530,36 @@ def _fetch_proof_of_delivery(order_reference: str) -> tuple[Optional[dict[str, A
     return None, "Proof-of-delivery information is not currently available for this order."
 
 
+def _lookup_local_delivery(tracking_or_ref: str) -> Optional[dict[str, Any]]:
+    candidate = _canonical_tracking_number(tracking_or_ref)
+    if not candidate:
+        return None
+
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM deliveries WHERE tracking_number = ?", (candidate,)
+        ).fetchone()
+
+    if not row:
+        return None
+
+    raw_data = json.loads(row["raw_row_json"]) if row["raw_row_json"] else {}
+    return {
+        "tracking_number": row["tracking_number"],
+        "job_no_item": row["job_no_item"],
+        "order_ref_no": row["order_ref_no"],
+        "job_status": row["job_status"],
+        "del_cust_name": row["del_cust_name"],
+        "del_addr1": row["del_addr1"],
+        "del_postcode": row["del_postcode"],
+        "del_date": row["del_date"],
+        "latest_tracking_event_datetime": row["latest_tracking_event_datetime"],
+        "latest_tracking_event_type": row["latest_tracking_event_type"],
+        "pdf_filename": row["pdf_filename"],
+        "raw_data": raw_data,
+    }
+
+
 def _build_context(
     raw_tracking_number: str | None,
     raw_order_reference: str | None,
@@ -452,9 +578,16 @@ def _build_context(
     resolved_tracking_number: Optional[str] = None
     proof_of_delivery: Optional[dict[str, Any]] = None
     proof_of_delivery_error: Optional[str] = None
-    
+    local_delivery: Optional[dict[str, Any]] = None
+
     if submission_attempted:
-        if tracking_number:
+        if order_reference:
+            local_delivery = _lookup_local_delivery(order_reference)
+            if local_delivery:
+                resolved_tracking_number = local_delivery["tracking_number"]
+        if local_delivery:
+            pass
+        elif tracking_number:
             if TRACKING_PATTERN.fullmatch(tracking_number):
                 tracking_url = f"{TRACKING_BASE_URL}{tracking_number}"
             else:
@@ -497,6 +630,7 @@ def _build_context(
         "proof_of_delivery_error": proof_of_delivery_error,
         "form_order_reference": form_order_reference,
         "submission_attempted": submission_attempted,
+        "local_delivery": local_delivery,
     }
 
 
@@ -520,15 +654,173 @@ def index():
     )
 
 
-@app.route("/<tracking_number>", methods=["GET"])
-def tracking_from_path(tracking_number: str):
-    """Display the tracker when a tracking number is supplied in the path."""
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename: str):
+    safe_name = secure_filename(filename)
+    if not safe_name:
+        abort(404)
+    return send_from_directory(UPLOAD_DIR, safe_name)
 
-    return render_template(
-        "index.html",
-        **_build_context(tracking_number, None, submission_attempted=True),
-    )
+
+@app.route("/admin", methods=["GET", "POST"])
+@_login_required
+def admin():
+    if request.method == "POST":
+        csv_file = request.files.get("csv_file")
+        if not csv_file or not csv_file.filename:
+            flash("Please choose a CSV file.", "danger")
+            return redirect(url_for("admin"))
+
+        try:
+            decoded_lines = csv_file.stream.read().decode("utf-8-sig").splitlines()
+            reader = csv.DictReader(decoded_lines)
+        except UnicodeDecodeError:
+            flash("The CSV file must be UTF-8 encoded.", "danger")
+            return redirect(url_for("admin"))
+
+        inserted = 0
+        updated = 0
+        skipped = 0
+        uploaded_pdf_count = 0
+
+        uploaded_pdfs_by_tracking = {}
+        for file_obj in request.files.getlist("pdf_files"):
+            if not file_obj or not file_obj.filename:
+                continue
+            if not _is_allowed_pdf(file_obj.filename):
+                continue
+            stem = Path(file_obj.filename).stem
+            canonical = _canonical_tracking_number(stem)
+            if canonical:
+                saved_name = _save_pdf_for_tracking(canonical, file_obj)
+                if saved_name:
+                    uploaded_pdfs_by_tracking[canonical] = saved_name
+                    uploaded_pdf_count += 1
+
+        with _get_db() as conn:
+            for row in reader:
+                job_no_item_raw = (row.get("Job No/Item") or "").strip()
+                if not job_no_item_raw:
+                    skipped += 1
+                    continue
+
+                job_no_item = re.sub(r"\s+", "", job_no_item_raw)
+                tracking_number = f"KN{job_no_item}"
+                if not _canonical_tracking_number(tracking_number):
+                    skipped += 1
+                    continue
+
+                existing = conn.execute(
+                    "SELECT tracking_number, pdf_filename FROM deliveries WHERE tracking_number = ?",
+                    (tracking_number,),
+                ).fetchone()
+
+                pdf_filename = uploaded_pdfs_by_tracking.get(tracking_number)
+                if not pdf_filename and existing:
+                    pdf_filename = existing["pdf_filename"]
+
+                now_iso = datetime.utcnow().isoformat(timespec="seconds")
+                values = (
+                    tracking_number,
+                    job_no_item,
+                    (row.get("Order/Ref No") or "").strip(),
+                    (row.get("Date Added") or "").strip(),
+                    (row.get("Col Date") or "").strip(),
+                    (row.get("Qty") or "").strip(),
+                    (row.get("Del Cust Name") or "").strip(),
+                    (row.get("Del Addr1") or "").strip(),
+                    (row.get("Del Postcode") or "").strip(),
+                    (row.get("Del Date") or "").strip(),
+                    (row.get("Job Status") or "").strip(),
+                    (row.get("Latest Tracking Event Date Time") or "").strip(),
+                    (row.get("Latest Tracking Event Type") or "").strip(),
+                    (row.get("Tracking Events") or "").strip(),
+                    pdf_filename,
+                    json.dumps(row),
+                    now_iso,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO deliveries (
+                        tracking_number, job_no_item, order_ref_no, date_added, col_date, qty,
+                        del_cust_name, del_addr1, del_postcode, del_date, job_status,
+                        latest_tracking_event_datetime, latest_tracking_event_type,
+                        tracking_events, pdf_filename, raw_row_json, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(tracking_number) DO UPDATE SET
+                        job_no_item = excluded.job_no_item,
+                        order_ref_no = excluded.order_ref_no,
+                        date_added = excluded.date_added,
+                        col_date = excluded.col_date,
+                        qty = excluded.qty,
+                        del_cust_name = excluded.del_cust_name,
+                        del_addr1 = excluded.del_addr1,
+                        del_postcode = excluded.del_postcode,
+                        del_date = excluded.del_date,
+                        job_status = excluded.job_status,
+                        latest_tracking_event_datetime = excluded.latest_tracking_event_datetime,
+                        latest_tracking_event_type = excluded.latest_tracking_event_type,
+                        tracking_events = excluded.tracking_events,
+                        pdf_filename = COALESCE(excluded.pdf_filename, deliveries.pdf_filename),
+                        raw_row_json = excluded.raw_row_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    values,
+                )
+
+                if existing:
+                    updated += 1
+                else:
+                    inserted += 1
+            conn.commit()
+
+        flash(
+            f"CSV processed. Added {inserted}, updated {updated}, skipped {skipped}. "
+            f"Matched {uploaded_pdf_count} PDF file(s) by filename.",
+            "success",
+        )
+        return redirect(url_for("admin"))
+
+    with _get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT tracking_number, job_no_item, order_ref_no, del_cust_name, del_date,
+                   job_status, pdf_filename, updated_at
+            FROM deliveries
+            ORDER BY updated_at DESC
+            LIMIT 200
+            """
+        ).fetchall()
+
+    return render_template("admin.html", deliveries=rows)
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session["admin_logged_in"] = True
+            flash("Logged in successfully.", "success")
+            return redirect(request.args.get("next") or url_for("admin"))
+
+        flash("Invalid username or password.", "danger")
+
+    return render_template("admin_login.html")
+
+
+@app.route("/admin/logout", methods=["POST"])
+@_login_required
+def admin_logout():
+    session.clear()
+    flash("Logged out.", "info")
+    return redirect(url_for("admin_login"))
+
+
+_ensure_storage()
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=True)
