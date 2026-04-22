@@ -82,6 +82,7 @@ TRACKING_NUMBER_KEYS = (
 def _ensure_storage() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    app.logger.info("Tracking storage directory initialised at %s", DATA_DIR)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
