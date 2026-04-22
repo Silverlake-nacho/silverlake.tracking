@@ -35,7 +35,7 @@ TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 LOCAL_TRACKING_PATTERN = re.compile(r"^KN\s*([0-9]+)\s*[/_-]\s*([0-9]+)$", re.IGNORECASE)
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.environ.get("TRACKING_DATA_DIR", BASE_DIR / "data")).resolve()
 UPLOAD_DIR = DATA_DIR / "pod_uploads"
 DB_PATH = DATA_DIR / "tracking.db"
 ALLOWED_PDF_EXTENSIONS = {"pdf"}
@@ -602,7 +602,9 @@ def _build_context(
     proof_of_delivery: Optional[dict[str, Any]] = None
     proof_of_delivery_error: Optional[str] = None
     local_delivery: Optional[dict[str, Any]] = None
-
+    local_pdf_url: Optional[str] = None
+    local_pdf_error: Optional[str] = None
+    
     if submission_attempted:
         if order_reference:
             local_delivery = _lookup_local_delivery(order_reference)
@@ -639,6 +641,13 @@ def _build_context(
             )
         else:
             error_message = "Please enter an order reference."
+            
+    if local_delivery:
+        pdf_filename = local_delivery.get("pdf_filename")
+        if pdf_filename:
+            local_pdf_url = url_for("uploaded_file", filename=pdf_filename)
+        else:
+            local_pdf_error = "No uploaded proof-of-delivery PDF is available for this delivery yet."
 
     form_order_reference = "" if submission_attempted else order_reference
 
@@ -654,6 +663,8 @@ def _build_context(
         "form_order_reference": form_order_reference,
         "submission_attempted": submission_attempted,
         "local_delivery": local_delivery,
+        "local_pdf_url": local_pdf_url,
+        "local_pdf_error": local_pdf_error,
     }
 
 
