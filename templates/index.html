@@ -258,6 +258,9 @@
               <div class="ratio ratio-16x9 tracking-frame-container">
                 <iframe class="tracking-frame" src="{{ local_pdf_url }}" title="Proof of Delivery PDF" loading="lazy"></iframe>
               </div>
+              <p class="text-center mt-3 mb-0">
+                <a href="{{ local_pdf_url }}" target="_blank" rel="noopener">Open PDF in a new tab</a>
+              </p>
             {% elif local_pdf_error %}
               <div class="alert alert-info text-center" role="alert">
                 {{ local_pdf_error }}
