@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: silverlake-tracking
+    env: docker
+    plan: starter
+    autoDeploy: true
+    disk:
+      name: silverlake-tracking-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: TRACKING_DATA_DIR
+        value: /var/data/silverlake-tracking
