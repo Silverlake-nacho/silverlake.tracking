@@ -160,12 +160,31 @@
           </div>
         {% endif %}
 
+        {% if local_delivery %}
+          <div class="row justify-content-center mb-4">
+            <div class="col-12 col-md-10 col-lg-8">
+              <h2 class="mb-3 text-center">Delivery details</h2>
+              <ul class="list-group shadow-sm">
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Tracking Number</span><span>{{ local_delivery.tracking_number }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Job No/Item</span><span>{{ local_delivery.job_no_item }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Order/Ref No</span><span>{{ local_delivery.order_ref_no }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Customer</span><span>{{ local_delivery.del_cust_name }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Address</span><span>{{ local_delivery.del_addr1 }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Postcode</span><span>{{ local_delivery.del_postcode }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Delivery Date</span><span>{{ local_delivery.del_date }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Status</span><span>{{ local_delivery.job_status }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Latest Event</span><span>{{ local_delivery.latest_tracking_event_type }} {{ local_delivery.latest_tracking_event_datetime }}</span></li>
+              </ul>
+            </div>
+          </div>
+        {% endif %}
+
         {% if tracking_url %}
           <h2 class="mb-3 text-center">Tracking Preview</h2>
           <div class="ratio ratio-16x9 tracking-frame-container">
             <iframe class="tracking-frame" src="{{ tracking_url }}" title="Tracking Details" loading="lazy" allowfullscreen></iframe>
           </div>
-        {% else %}
+        {% elif not local_delivery %}
           <div class="text-center text-muted">
             <em>Submit a valid Order Reference to see the delivery status here.</em>
           </div>
@@ -229,6 +248,21 @@
             <div class="alert alert-info text-center" role="alert">
               {{ proof_of_delivery_error }}
             </div>
+          </div>
+        {% endif %}
+
+        {% if local_delivery %}
+          <div class="pod-section">
+            <h2 class="mb-3 text-center">Proof of delivery PDF</h2>
+            {% if local_pdf_url %}
+              <div class="ratio ratio-16x9 tracking-frame-container">
+                <iframe class="tracking-frame" src="{{ local_pdf_url }}" title="Proof of Delivery PDF" loading="lazy"></iframe>
+              </div>
+            {% elif local_pdf_error %}
+              <div class="alert alert-info text-center" role="alert">
+                {{ local_pdf_error }}
+              </div>
+            {% endif %}
           </div>
         {% endif %}
       </div>
