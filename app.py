@@ -34,6 +34,7 @@ TRACKING_BASE_URL = "https://orderstrack.com/"
 TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 LOCAL_TRACKING_PATTERN = re.compile(r"^KN\s*([0-9]+)\s*[/_-]\s*([0-9]+)$", re.IGNORECASE)
 KN_PREFIX_PATTERN = re.compile(r"^KN[\s:_-]*(.+)$", re.IGNORECASE)
+KN_WITHOUT_ITEM_PATTERN = re.compile(r"^KN\s*([0-9]+)$", re.IGNORECASE)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -225,6 +226,16 @@ def _extract_kn_payload(value: str) -> Optional[str]:
         return None
     payload = match.group(1).strip()
     return payload or None
+
+
+def _shareable_kn_code(tracking_number: str) -> str:
+    """Return a share-friendly KN code, omitting trailing ``/1`` when present."""
+
+    match = re.fullmatch(r"(KN\d+)/1", tracking_number.strip(), re.IGNORECASE)
+    if not match:
+        return tracking_number.strip()
+    return match.group(1).upper()
+
 
 
 def _save_pdf_for_tracking(tracking_number: str, incoming_file: Any) -> Optional[str]:
@@ -669,10 +680,14 @@ def _fetch_proof_of_delivery(order_reference: str) -> tuple[Optional[dict[str, A
 
 def _lookup_local_delivery(tracking_or_ref: str) -> Optional[dict[str, Any]]:
     candidate = _canonical_tracking_number(tracking_or_ref)
+    candidate_without_item = None
+    without_item_match = KN_WITHOUT_ITEM_PATTERN.fullmatch(tracking_or_ref.strip())
+    if without_item_match:
+        candidate_without_item = f"KN{without_item_match.group(1)}/1"
     kn_payload = _extract_kn_payload(tracking_or_ref)
     normalised_kn_payload = _normalise_order_reference(kn_payload) if kn_payload else None
 
-    if not candidate and not normalised_kn_payload:
+    if not candidate and not candidate_without_item and not normalised_kn_payload:
         return None
 
     with _get_db() as conn:
@@ -683,6 +698,16 @@ def _lookup_local_delivery(tracking_or_ref: str) -> Optional[dict[str, Any]]:
             if row:
                 pass
             elif normalised_kn_payload:
+                row = conn.execute(
+                    "SELECT * FROM deliveries WHERE UPPER(TRIM(order_ref_no)) = ?",
+                    (normalised_kn_payload,),
+                ).fetchone()
+        elif candidate_without_item:
+            row = conn.execute(
+                "SELECT * FROM deliveries WHERE tracking_number = ?",
+                (candidate_without_item,),
+            ).fetchone()
+            if not row and normalised_kn_payload:
                 row = conn.execute(
                     "SELECT * FROM deliveries WHERE UPPER(TRIM(order_ref_no)) = ?",
                     (normalised_kn_payload,),
@@ -811,20 +836,31 @@ def index():
     """Render the home page with an optional tracking URL."""
 
     if request.method == "POST":
-        return render_template(
-            "index.html",
-            **_build_context(
-                request.form.get("tracking_number"),
-                request.form.get("order_reference"),
-                submission_attempted=True,
-            ),
+        context = _build_context(
+            request.form.get("tracking_number"),
+            request.form.get("order_reference"),
+            submission_attempted=True,
         )
+        local_delivery = context.get("local_delivery")
+        if local_delivery and local_delivery.get("tracking_number"):
+            return redirect(
+                url_for(
+                    "index",
+                    order_reference=_shareable_kn_code(local_delivery["tracking_number"]),
+                )
+            )
+        return render_template("index.html", **context)
 
+    order_reference = request.args.get("order_reference")
+    if order_reference:
+    return render_template(
+        "index.html",
+            **_build_context(None, order_reference, submission_attempted=True),
+    )
     return render_template(
         "index.html",
         **_build_context(None, None, submission_attempted=False),
     )
-
 
 @app.route("/uploads/<path:filename>")
 def uploaded_file(filename: str):
