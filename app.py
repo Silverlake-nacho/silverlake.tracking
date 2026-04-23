@@ -40,6 +40,10 @@ BASE_DIR = Path(__file__).resolve().parent
 def _default_data_dir() -> Path:
     """Return a storage directory that survives Render deploys when possible."""
 
+    render_disk_path = os.environ.get("RENDER_DISK_PATH")
+    if render_disk_path:
+        return Path(render_disk_path) / "silverlake-tracking"
+
     render_data_root = Path("/var/data")
     render_markers = (
         "RENDER",
@@ -982,11 +986,13 @@ def admin():
         deliveries=deliveries,
         data_dir=str(DATA_DIR),
         tracking_data_dir_env=os.environ.get("TRACKING_DATA_DIR"),
+        render_disk_path_env=os.environ.get("RENDER_DISK_PATH"),
         upload_dir=str(UPLOAD_DIR),
         upload_dir_files=upload_dir_files,
         missing_pdf_count=missing_pdf_count,
         render_git_commit=os.environ.get("RENDER_GIT_COMMIT"),
         render_instance_id=os.environ.get("RENDER_INSTANCE_ID"),
+        runtime_hostname=os.environ.get("HOSTNAME"),
     )
 
 
