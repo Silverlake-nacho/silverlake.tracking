@@ -853,10 +853,10 @@ def index():
 
     order_reference = request.args.get("order_reference")
     if order_reference:
-    return render_template(
-        "index.html",
+        return render_template(
+            "index.html",
             **_build_context(None, order_reference, submission_attempted=True),
-    )
+        )
     return render_template(
         "index.html",
         **_build_context(None, None, submission_attempted=False),
