@@ -95,7 +95,13 @@
         padding: 2.5rem 3rem;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
       }
-
+      .kinaxia-logo {
+        max-width: 220px;
+        width: 100%;
+        height: auto;
+        display: block;
+        margin-bottom: 1rem;
+      }
       @media (max-width: 992px) {
         .content-card {
           padding: 2rem;
@@ -154,7 +160,7 @@
           <div class="col-12 col-md-6">
             <label for="order_reference" class="form-label">Order Reference</label>
             <input type="text" class="form-control" id="order_reference" name="order_reference" placeholder="e.g. XX 373456 (Route + Order Number)" value="{{ form_order_reference }}">
-            <div class="form-text">Enter the order reference to retrieve your delivery details.</div>
+            <div class="form-text">Enter the order reference to retrieve your delivery details. KN lookups also support <code>KN1234567/1</code> and <code>KN + Order/Ref No</code> formats.</div>
           </div>
           <div class="col-12 d-flex justify-content-center">
             <button type="submit" class="btn btn-success btn-track">Track Delivery</button>
@@ -170,6 +176,7 @@
         {% if local_delivery %}
           <div class="row justify-content-center mb-4">
             <div class="col-12 col-md-10 col-lg-8">
+              <img src="{{ url_for('static', filename='KinaxiaLogo.jpg') }}" alt="Kinaxia Logo" class="kinaxia-logo">
               <h2 class="mb-3 text-center">Delivery details</h2>
               <ul class="list-group shadow-sm">
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Tracking Number</span><span>{{ local_delivery.tracking_number }}</span></li>
