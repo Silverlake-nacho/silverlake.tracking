@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Admin - Silverlake Tracking</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      .sortable {
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+      }
+      .sortable .sort-indicator {
+        font-size: 0.8rem;
+        opacity: 0.6;
+        margin-left: 0.35rem;
+      }
+      .column-filter {
+        min-width: 120px;
+      }
+    </style>
   </head>
   <body class="bg-light">
     <div class="container py-4">
@@ -83,20 +98,30 @@
             </ul>
           {% endif %}
           <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle">
+            <table class="table table-sm table-striped align-middle" id="deliveries-table">
               <thead>
                 <tr>
-                  <th>Tracking Number</th>
-                  <th>Job No/Item</th>
-                  <th>Order Ref</th>
-                  <th>Customer</th>
-                  <th>Delivery Date</th>
-                  <th>Status</th>
-                  <th>POD</th>
-                  <th>Updated</th>
+                  <th class="sortable" data-column-index="0">Tracking Number <span class="sort-indicator">↕</span></th>
+                  <th class="sortable" data-column-index="1">Job No/Item <span class="sort-indicator">↕</span></th>
+                  <th class="sortable" data-column-index="2">Order Ref <span class="sort-indicator">↕</span></th>
+                  <th class="sortable" data-column-index="3">Customer <span class="sort-indicator">↕</span></th>
+                  <th class="sortable" data-column-index="4">Delivery Date <span class="sort-indicator">↕</span></th>
+                  <th class="sortable" data-column-index="5">Status <span class="sort-indicator">↕</span></th>
+                  <th class="sortable" data-column-index="6">POD <span class="sort-indicator">↕</span></th>
+                  <th class="sortable" data-column-index="7">Updated <span class="sort-indicator">↕</span></th>
+                </tr>
+                <tr>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="0" placeholder="Filter"></th>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="1" placeholder="Filter"></th>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="2" placeholder="Filter"></th>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="3" placeholder="Filter"></th>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="4" placeholder="Filter"></th>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="5" placeholder="Filter"></th>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="6" placeholder="Filter"></th>
+                  <th><input type="text" class="form-control form-control-sm column-filter" data-column-index="7" placeholder="Filter"></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="deliveries-table-body">
                 {% for delivery in deliveries %}
                   <tr>
                     <td>{{ delivery.tracking_number }}</td>
@@ -127,5 +152,91 @@
         </div>
       </div>
     </div>
+    <script>
+      (function () {
+        const table = document.getElementById("deliveries-table");
+        const tbody = document.getElementById("deliveries-table-body");
+        if (!table || !tbody) return;
+
+        const headers = Array.from(table.querySelectorAll("th.sortable"));
+        const filters = Array.from(table.querySelectorAll(".column-filter"));
+        let activeSort = { index: 7, direction: "desc" };
+
+        function getRows() {
+          return Array.from(tbody.querySelectorAll("tr")).filter(
+            (row) => row.querySelectorAll("td").length > 1
+          );
+        }
+
+        function cellValue(row, columnIndex) {
+          const cells = row.querySelectorAll("td");
+          const cell = cells[columnIndex];
+          if (!cell) return "";
+          return (cell.textContent || "").trim().toLowerCase();
+        }
+
+        function applyFilters() {
+          const rows = getRows();
+          rows.forEach((row) => {
+            const isVisible = filters.every((filterInput) => {
+              const query = filterInput.value.trim().toLowerCase();
+              if (!query) return true;
+              const index = Number(filterInput.dataset.columnIndex || -1);
+              return cellValue(row, index).includes(query);
+            });
+            row.style.display = isVisible ? "" : "none";
+          });
+        }
+
+        function applySort() {
+          const rows = getRows();
+          const directionMultiplier = activeSort.direction === "asc" ? 1 : -1;
+          rows.sort((a, b) => {
+            const left = cellValue(a, activeSort.index);
+            const right = cellValue(b, activeSort.index);
+            if (left < right) return -1 * directionMultiplier;
+            if (left > right) return 1 * directionMultiplier;
+            return 0;
+          });
+          rows.forEach((row) => tbody.appendChild(row));
+        }
+
+        function updateIndicators() {
+          headers.forEach((header) => {
+            const indicator = header.querySelector(".sort-indicator");
+            const index = Number(header.dataset.columnIndex || -1);
+            if (!indicator) return;
+            if (index === activeSort.index) {
+              indicator.textContent = activeSort.direction === "asc" ? "↑" : "↓";
+            } else {
+              indicator.textContent = "↕";
+            }
+          });
+        }
+
+        headers.forEach((header) => {
+          header.addEventListener("click", () => {
+            const index = Number(header.dataset.columnIndex || -1);
+            if (index < 0) return;
+            if (activeSort.index === index) {
+              activeSort.direction = activeSort.direction === "asc" ? "desc" : "asc";
+            } else {
+              activeSort = { index, direction: "asc" };
+            }
+            applySort();
+            applyFilters();
+            updateIndicators();
+          });
+        });
+
+        filters.forEach((filterInput) => {
+          filterInput.addEventListener("input", applyFilters);
+        });
+
+        applySort();
+        applyFilters();
+        updateIndicators();
+      })();
+    </script>
   </body>
 </html>
