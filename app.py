@@ -41,6 +41,13 @@ def _default_data_dir() -> Path:
     """Return a storage directory that survives Render deploys when possible."""
 
     render_data_root = Path("/var/data")
+    render_markers = (
+        "RENDER",
+        "RENDER_SERVICE_ID",
+        "RENDER_EXTERNAL_URL",
+    )
+    if any(os.environ.get(marker) for marker in render_markers):
+        return render_data_root / "silverlake-tracking"
     if render_data_root.exists():
         return render_data_root / "silverlake-tracking"
     return BASE_DIR / "data"
@@ -974,9 +981,12 @@ def admin():
         "admin.html",
         deliveries=deliveries,
         data_dir=str(DATA_DIR),
+        tracking_data_dir_env=os.environ.get("TRACKING_DATA_DIR"),
         upload_dir=str(UPLOAD_DIR),
         upload_dir_files=upload_dir_files,
         missing_pdf_count=missing_pdf_count,
+        render_git_commit=os.environ.get("RENDER_GIT_COMMIT"),
+        render_instance_id=os.environ.get("RENDER_INSTANCE_ID"),
     )
 
 
