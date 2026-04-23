@@ -156,7 +156,20 @@ def _save_pdf_for_tracking(tracking_number: str, incoming_file: Any) -> Optional
     extension = filename.rsplit(".", 1)[1].lower()
     safe_tracking = secure_filename(tracking_number)
     target_name = f"{safe_tracking}.{extension}"
-    incoming_file.save(UPLOAD_DIR / target_name)
+    target_path = UPLOAD_DIR / target_name
+    incoming_file.save(target_path)
+    exists_after_save = target_path.exists()
+    file_size = target_path.stat().st_size if exists_after_save else 0
+    app.logger.info(
+        "Saved POD PDF for %s to %s (exists=%s, size=%s)",
+        tracking_number,
+        target_path,
+        exists_after_save,
+        file_size,
+    )
+    if not exists_after_save:
+        app.logger.error("PDF save failed for %s (expected path %s)", tracking_number, target_path)
+        return None
     return target_name
 
 
@@ -932,7 +945,39 @@ def admin():
             """
         ).fetchall()
 
-    return render_template("admin.html", deliveries=rows)
+    upload_dir_files = sorted(
+        [entry.name for entry in UPLOAD_DIR.glob("*") if entry.is_file()]
+    )
+    deliveries = []
+    missing_pdf_count = 0
+    for row in rows:
+        pdf_filename = row["pdf_filename"]
+        safe_pdf_name = secure_filename(pdf_filename) if pdf_filename else None
+        pdf_exists = bool(safe_pdf_name and (UPLOAD_DIR / safe_pdf_name).exists())
+        if pdf_filename and not pdf_exists:
+            missing_pdf_count += 1
+        deliveries.append(
+            {
+                "tracking_number": row["tracking_number"],
+                "job_no_item": row["job_no_item"],
+                "order_ref_no": row["order_ref_no"],
+                "del_cust_name": row["del_cust_name"],
+                "del_date": row["del_date"],
+                "job_status": row["job_status"],
+                "pdf_filename": pdf_filename,
+                "pdf_exists": pdf_exists,
+                "updated_at": row["updated_at"],
+            }
+        )
+
+    return render_template(
+        "admin.html",
+        deliveries=deliveries,
+        data_dir=str(DATA_DIR),
+        upload_dir=str(UPLOAD_DIR),
+        upload_dir_files=upload_dir_files,
+        missing_pdf_count=missing_pdf_count,
+    )
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
