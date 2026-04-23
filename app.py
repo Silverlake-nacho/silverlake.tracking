@@ -260,14 +260,15 @@ def _parse_uk_datetime(timestamp: str) -> Optional[tuple[str, str]]:
     return uk_time.strftime("%d/%m/%Y"), uk_time.strftime("%H:%M")
 
 
-def _build_bing_map_embed_url(address: Optional[str], postcode: Optional[str]) -> Optional[str]:
-    """Build a Bing Maps embed URL using delivery address details."""
+def _build_bing_map_embed_url(_address: Optional[str], postcode: Optional[str]) -> Optional[str]:
+    """Build a Bing Maps embed URL using postcode-first delivery details."""
 
-    parts = [part.strip() for part in (address, postcode) if part and part.strip()]
-    if not parts:
+    postcode_value = (postcode or "").strip()
+    if not postcode_value:
         return None
 
-    location_query = ", ".join(parts)
+    # Postcode geocoding is typically more reliable than free-form address names.
+    location_query = f"{postcode_value}, UK"
     return (
         "https://www.bing.com/maps/embed?"
         f"h=220&w=100%25&cp=0~0&lvl=15&typ=d&sty=r&src=SHELL&where1={quote(location_query)}"
