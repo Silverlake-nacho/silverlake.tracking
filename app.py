@@ -260,6 +260,20 @@ def _parse_uk_datetime(timestamp: str) -> Optional[tuple[str, str]]:
     return uk_time.strftime("%d/%m/%Y"), uk_time.strftime("%H:%M")
 
 
+def _build_bing_map_embed_url(address: Optional[str], postcode: Optional[str]) -> Optional[str]:
+    """Build a Bing Maps embed URL using delivery address details."""
+
+    parts = [part.strip() for part in (address, postcode) if part and part.strip()]
+    if not parts:
+        return None
+
+    location_query = ", ".join(parts)
+    return (
+        "https://www.bing.com/maps/embed?"
+        f"h=220&w=100%25&cp=0~0&lvl=15&typ=d&sty=r&src=SHELL&where1={quote(location_query)}"
+    )
+
+
 def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
     """Extract displayable proof-of-delivery information from ``payload``."""
 
@@ -616,6 +630,7 @@ def _build_context(
     local_delivery: Optional[dict[str, Any]] = None
     local_pdf_url: Optional[str] = None
     local_pdf_error: Optional[str] = None
+    delivery_map_url: Optional[str] = None
     
     if submission_attempted:
         if order_reference:
@@ -660,7 +675,11 @@ def _build_context(
             local_pdf_url = url_for("uploaded_file", filename=pdf_filename)
         else:
             local_pdf_error = "No uploaded proof-of-delivery PDF is available for this delivery yet."
-
+        delivery_map_url = _build_bing_map_embed_url(
+            local_delivery.get("del_addr1"),
+            local_delivery.get("del_postcode"),
+        )
+        
     form_order_reference = "" if submission_attempted else order_reference
 
     return {
@@ -677,6 +696,7 @@ def _build_context(
         "local_delivery": local_delivery,
         "local_pdf_url": local_pdf_url,
         "local_pdf_error": local_pdf_error,
+        "delivery_map_url": delivery_map_url,
     }
 
 
