@@ -121,6 +121,39 @@ def _ensure_storage() -> None:
         conn.commit()
 
 
+def _resolve_mount_details(path: Path) -> dict[str, str]:
+    """Return best-effort mount metadata for ``path`` from ``/proc/mounts``."""
+
+    mounts_file = Path("/proc/mounts")
+    if not mounts_file.exists():
+        return {"mount_point": "(unavailable)", "device": "(unavailable)", "fstype": "(unavailable)"}
+
+    try:
+        lines = mounts_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return {"mount_point": "(unavailable)", "device": "(unavailable)", "fstype": "(unavailable)"}
+
+    best_match: Optional[tuple[str, str, str]] = None
+    target = str(path.resolve())
+    for line in lines:
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        device, mount_point, filesystem = parts[0], parts[1], parts[2]
+        if target == mount_point or target.startswith(f"{mount_point.rstrip('/')}/"):
+            if not best_match or len(mount_point) > len(best_match[1]):
+                best_match = (device, mount_point, filesystem)
+
+    if not best_match:
+        return {"mount_point": "(not mounted)", "device": "(not mounted)", "fstype": "(not mounted)"}
+
+    return {
+        "mount_point": best_match[1],
+        "device": best_match[0],
+        "fstype": best_match[2],
+    }
+
+
 def _get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -987,12 +1020,16 @@ def admin():
         data_dir=str(DATA_DIR),
         tracking_data_dir_env=os.environ.get("TRACKING_DATA_DIR"),
         render_disk_path_env=os.environ.get("RENDER_DISK_PATH"),
+        render_service_id=os.environ.get("RENDER_SERVICE_ID"),
+        render_external_url=os.environ.get("RENDER_EXTERNAL_URL"),
         upload_dir=str(UPLOAD_DIR),
         upload_dir_files=upload_dir_files,
         missing_pdf_count=missing_pdf_count,
         render_git_commit=os.environ.get("RENDER_GIT_COMMIT"),
         render_instance_id=os.environ.get("RENDER_INSTANCE_ID"),
         runtime_hostname=os.environ.get("HOSTNAME"),
+        data_mount=_resolve_mount_details(DATA_DIR),
+        uploads_mount=_resolve_mount_details(UPLOAD_DIR),
     )
 
 
