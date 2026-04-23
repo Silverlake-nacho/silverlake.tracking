@@ -33,6 +33,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-secret")
 TRACKING_BASE_URL = "https://orderstrack.com/"
 TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 LOCAL_TRACKING_PATTERN = re.compile(r"^KN\s*([0-9]+)\s*[/_-]\s*([0-9]+)$", re.IGNORECASE)
+KN_PREFIX_PATTERN = re.compile(r"^KN[\s:_-]*(.+)$", re.IGNORECASE)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -215,6 +216,15 @@ def _canonical_tracking_number(value: str) -> Optional[str]:
     if not match:
         return None
     return f"KN{match.group(1)}/{match.group(2)}"
+
+def _extract_kn_payload(value: str) -> Optional[str]:
+    """Return the text after a ``KN`` prefix for local matching formats."""
+
+    match = KN_PREFIX_PATTERN.fullmatch(value.strip())
+    if not match:
+        return None
+    payload = match.group(1).strip()
+    return payload or None
 
 
 def _save_pdf_for_tracking(tracking_number: str, incoming_file: Any) -> Optional[str]:
@@ -659,13 +669,29 @@ def _fetch_proof_of_delivery(order_reference: str) -> tuple[Optional[dict[str, A
 
 def _lookup_local_delivery(tracking_or_ref: str) -> Optional[dict[str, Any]]:
     candidate = _canonical_tracking_number(tracking_or_ref)
-    if not candidate:
+    kn_payload = _extract_kn_payload(tracking_or_ref)
+    normalised_kn_payload = _normalise_order_reference(kn_payload) if kn_payload else None
+
+    if not candidate and not normalised_kn_payload:
         return None
 
     with _get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM deliveries WHERE tracking_number = ?", (candidate,)
-        ).fetchone()
+        if candidate:
+            row = conn.execute(
+                "SELECT * FROM deliveries WHERE tracking_number = ?", (candidate,)
+            ).fetchone()
+            if row:
+                pass
+            elif normalised_kn_payload:
+                row = conn.execute(
+                    "SELECT * FROM deliveries WHERE UPPER(TRIM(order_ref_no)) = ?",
+                    (normalised_kn_payload,),
+                ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM deliveries WHERE UPPER(TRIM(order_ref_no)) = ?",
+                (normalised_kn_payload,),
+            ).fetchone()
 
     if not row:
         return None
