@@ -260,8 +260,8 @@ def _parse_uk_datetime(timestamp: str) -> Optional[tuple[str, str]]:
     return uk_time.strftime("%d/%m/%Y"), uk_time.strftime("%H:%M")
 
 
-def _build_bing_map_embed_url(_address: Optional[str], postcode: Optional[str]) -> Optional[str]:
-    """Build a Bing Maps embed URL using postcode-first delivery details."""
+def _build_google_map_embed_url(_address: Optional[str], postcode: Optional[str]) -> Optional[str]:
+    """Build a Google Maps embed URL using postcode-only delivery details."""
 
     postcode_value = (postcode or "").strip()
     if not postcode_value:
@@ -269,10 +269,7 @@ def _build_bing_map_embed_url(_address: Optional[str], postcode: Optional[str]) 
 
     # Postcode geocoding is typically more reliable than free-form address names.
     location_query = f"{postcode_value}, UK"
-    return (
-        "https://www.bing.com/maps/embed?"
-        f"h=220&w=100%25&cp=0~0&lvl=15&typ=d&sty=r&src=SHELL&where1={quote(location_query)}"
-    )
+    return f"https://www.google.com/maps?q={quote(location_query)}&output=embed"
 
 
 def _build_proof_of_delivery_context(payload: Any) -> Optional[dict[str, Any]]:
@@ -676,7 +673,7 @@ def _build_context(
             local_pdf_url = url_for("uploaded_file", filename=pdf_filename)
         else:
             local_pdf_error = "No uploaded proof-of-delivery PDF is available for this delivery yet."
-        delivery_map_url = _build_bing_map_embed_url(
+        delivery_map_url = _build_google_map_embed_url(
             local_delivery.get("del_addr1"),
             local_delivery.get("del_postcode"),
         )
