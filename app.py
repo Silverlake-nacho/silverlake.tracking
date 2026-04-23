@@ -154,6 +154,31 @@ def _resolve_mount_details(path: Path) -> dict[str, str]:
     }
 
 
+def _build_storage_warnings(
+    data_mount: dict[str, str],
+    uploads_mount: dict[str, str],
+) -> list[str]:
+    warnings: list[str] = []
+    mount_descriptions = (
+        ("data directory", data_mount),
+        ("upload directory", uploads_mount),
+    )
+    for label, details in mount_descriptions:
+        mount_point = details.get("mount_point", "")
+        fstype = details.get("fstype", "")
+        if mount_point == "/" and fstype == "overlay":
+            warnings.append(
+                f"The {label} is on container overlay storage, not a mounted persistent disk."
+            )
+    if os.environ.get("RENDER_SERVICE_ID") and os.environ.get("RENDER_EXTERNAL_URL"):
+        # This helps operators quickly notice they're looking at another Render service.
+        warnings.append(
+            "Verify Render Shell is opened for the same service shown below "
+            "(Service ID and External URL must match the admin page)."
+        )
+    return warnings
+
+
 def _get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -1014,6 +1039,10 @@ def admin():
             }
         )
 
+    data_mount = _resolve_mount_details(DATA_DIR)
+    uploads_mount = _resolve_mount_details(UPLOAD_DIR)
+    storage_warnings = _build_storage_warnings(data_mount, uploads_mount)
+
     return render_template(
         "admin.html",
         deliveries=deliveries,
@@ -1028,8 +1057,9 @@ def admin():
         render_git_commit=os.environ.get("RENDER_GIT_COMMIT"),
         render_instance_id=os.environ.get("RENDER_INSTANCE_ID"),
         runtime_hostname=os.environ.get("HOSTNAME"),
-        data_mount=_resolve_mount_details(DATA_DIR),
-        uploads_mount=_resolve_mount_details(UPLOAD_DIR),
+        data_mount=data_mount,
+        uploads_mount=uploads_mount,
+        storage_warnings=storage_warnings,
     )
 
 
