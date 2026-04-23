@@ -41,7 +41,7 @@ def _default_data_dir() -> Path:
     """Return a storage directory that survives Render deploys when possible."""
 
     render_data_root = Path("/var/data")
-    if os.environ.get("RENDER") and render_data_root.exists():
+    if render_data_root.exists():
         return render_data_root / "silverlake-tracking"
     return BASE_DIR / "data"
 
