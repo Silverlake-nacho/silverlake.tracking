@@ -51,10 +51,14 @@
             <div><strong>Data directory:</strong> <code>{{ data_dir }}</code></div>
             <div><strong>TRACKING_DATA_DIR env:</strong> <code>{{ tracking_data_dir_env or "(not set - using auto-detected path)" }}</code></div>
             <div><strong>RENDER_DISK_PATH env:</strong> <code>{{ render_disk_path_env or "(not set)" }}</code></div>
+            <div><strong>Render service id:</strong> <code>{{ render_service_id or "(not available)" }}</code></div>
+            <div><strong>Render external URL:</strong> <code>{{ render_external_url or "(not available)" }}</code></div>
             <div><strong>Upload directory:</strong> <code>{{ upload_dir }}</code></div>
             <div><strong>Render commit:</strong> <code>{{ render_git_commit or "(not available)" }}</code></div>
             <div><strong>Render instance:</strong> <code>{{ render_instance_id or "(not available)" }}</code></div>
             <div><strong>Runtime hostname:</strong> <code>{{ runtime_hostname or "(not available)" }}</code></div>
+            <div><strong>Data mount:</strong> <code>{{ data_mount.device }} on {{ data_mount.mount_point }} ({{ data_mount.fstype }})</code></div>
+            <div><strong>Uploads mount:</strong> <code>{{ uploads_mount.device }} on {{ uploads_mount.mount_point }} ({{ uploads_mount.fstype }})</code></div>
             <div><strong>Files currently on disk:</strong> {{ upload_dir_files|length }}</div>
             {% if missing_pdf_count %}
               <div class="text-danger"><strong>Warning:</strong> {{ missing_pdf_count }} row(s) reference a PDF filename that is missing on disk.</div>
