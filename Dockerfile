@@ -4,7 +4,7 @@ FROM python:3.11-slim
 # Prevent Python from writing pyc files and enable unbuffered logs
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    TRACKING_DATA_DIR=/app/data
+
 
 # Set the working directory in the container
 WORKDIR /app
