@@ -47,6 +47,22 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <h2 class="h5">Latest Imported Deliveries</h2>
+          <div class="alert alert-secondary py-2">
+            <div><strong>Data directory:</strong> <code>{{ data_dir }}</code></div>
+            <div><strong>Upload directory:</strong> <code>{{ upload_dir }}</code></div>
+            <div><strong>Files currently on disk:</strong> {{ upload_dir_files|length }}</div>
+            {% if missing_pdf_count %}
+              <div class="text-danger"><strong>Warning:</strong> {{ missing_pdf_count }} row(s) reference a PDF filename that is missing on disk.</div>
+            {% endif %}
+          </div>
+          {% if upload_dir_files %}
+            <p class="mb-2"><strong>Files in upload directory:</strong></p>
+            <ul class="small">
+              {% for file_name in upload_dir_files %}
+                <li><code>{{ file_name }}</code></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
           <div class="table-responsive">
             <table class="table table-sm table-striped align-middle">
               <thead>
@@ -71,8 +87,10 @@
                     <td>{{ delivery.del_date }}</td>
                     <td>{{ delivery.job_status }}</td>
                     <td>
-                      {% if delivery.pdf_filename %}
+                      {% if delivery.pdf_filename and delivery.pdf_exists %}
                         <a href="{{ url_for('uploaded_file', filename=delivery.pdf_filename) }}" target="_blank" rel="noopener">View PDF</a>
+                        {% elif delivery.pdf_filename and not delivery.pdf_exists %}
+                        <span class="text-danger">Missing on disk ({{ delivery.pdf_filename }})</span>
                       {% else %}
                         <span class="text-muted">No PDF</span>
                       {% endif %}
