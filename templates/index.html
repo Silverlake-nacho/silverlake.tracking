@@ -73,6 +73,13 @@
       .pod-details .list-group-item {
         background-color: rgba(255, 255, 255, 0.85);
       }
+      .delivery-map-frame {
+        border: 1px solid rgba(92, 156, 19, 0.4);
+        border-radius: 8px;
+        width: 100%;
+        height: 220px;
+        display: block;
+      }
       .logo {
         text-align: center;
         margin-bottom: 20px;
@@ -171,6 +178,18 @@
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Customer</span><span>{{ local_delivery.del_cust_name }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Address</span><span>{{ local_delivery.del_addr1 }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Postcode</span><span>{{ local_delivery.del_postcode }}</span></li>
+                {% if delivery_map_url %}
+                  <li class="list-group-item">
+                    <div class="fw-semibold mb-2">Delivery location map</div>
+                    <iframe
+                      class="delivery-map-frame"
+                      src="{{ delivery_map_url }}"
+                      title="Delivery location map"
+                      loading="lazy"
+                      referrerpolicy="no-referrer-when-downgrade">
+                    </iframe>
+                  </li>
+                {% endif %}
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Delivery Date</span><span>{{ local_delivery.del_date }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Status</span><span>{{ local_delivery.job_status }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Latest Event</span><span>{{ local_delivery.latest_tracking_event_type }} {{ local_delivery.latest_tracking_event_datetime }}</span></li>
