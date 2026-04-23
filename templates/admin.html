@@ -175,6 +175,40 @@
           return (cell.textContent || "").trim().toLowerCase();
         }
 
+        function parseDateValue(value) {
+          const trimmed = value.trim();
+          if (!trimmed) return null;
+
+          // Supports `DD/MM/YYYY` (optionally with time suffix).
+          const ukMatch = trimmed.match(
+            /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
+          );
+          if (ukMatch) {
+            const day = Number(ukMatch[1]);
+            const month = Number(ukMatch[2]) - 1;
+            const year = Number(ukMatch[3]);
+            const hours = Number(ukMatch[4] || 0);
+            const minutes = Number(ukMatch[5] || 0);
+            const seconds = Number(ukMatch[6] || 0);
+            return new Date(year, month, day, hours, minutes, seconds).getTime();
+          }
+
+          // Fallback for ISO-like values such as updated_at.
+          const isoTime = Date.parse(trimmed);
+          if (!Number.isNaN(isoTime)) return isoTime;
+
+          return null;
+        }
+
+        function sortValue(row, columnIndex) {
+          const raw = cellValue(row, columnIndex);
+          if (columnIndex === 4 || columnIndex === 7) {
+            const parsedDate = parseDateValue(raw);
+            if (parsedDate !== null) return parsedDate;
+          }
+          return raw;
+        }
+
         function applyFilters() {
           const rows = getRows();
           rows.forEach((row) => {
@@ -192,8 +226,8 @@
           const rows = getRows();
           const directionMultiplier = activeSort.direction === "asc" ? 1 : -1;
           rows.sort((a, b) => {
-            const left = cellValue(a, activeSort.index);
-            const right = cellValue(b, activeSort.index);
+            const left = sortValue(a, activeSort.index);
+            const right = sortValue(b, activeSort.index);
             if (left < right) return -1 * directionMultiplier;
             if (left > right) return 1 * directionMultiplier;
             return 0;
