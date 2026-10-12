@@ -179,12 +179,18 @@
               <img src="{{ url_for('static', filename='KinaxiaLogo.jpg') }}" alt="Kinaxia Logo" class="kinaxia-logo">
               <h2 class="mb-3 text-center">Delivery details</h2>
               <ul class="list-group shadow-sm">
+                {% if local_delivery.csv_fields %}
+                  {% for title, value in local_delivery.csv_fields %}
+                    <li class="list-group-item d-flex justify-content-between gap-3"><span class="fw-semibold">{{ title }}</span><span class="text-end">{{ value or "" }}</span></li>
+                  {% endfor %}
+                {% else %}
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Tracking Number</span><span>{{ local_delivery.tracking_number }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Job No/Item</span><span>{{ local_delivery.job_no_item }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Order/Ref No</span><span>{{ local_delivery.order_ref_no }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Customer</span><span>{{ local_delivery.del_cust_name }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Address</span><span>{{ local_delivery.del_addr1 }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Postcode</span><span>{{ local_delivery.del_postcode }}</span></li>
+                {% endif %}
                 {% if delivery_map_url %}
                   <li class="list-group-item">
                     <div class="fw-semibold mb-2">Delivery location map</div>
@@ -197,9 +203,11 @@
                     </iframe>
                   </li>
                 {% endif %}
+                {% if not local_delivery.csv_fields %}
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Delivery Date</span><span>{{ local_delivery.del_date }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Status</span><span>{{ local_delivery.job_status }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="fw-semibold">Latest Event</span><span>{{ local_delivery.latest_tracking_event_type }} {{ local_delivery.latest_tracking_event_datetime }}</span></li>
+                {% endif %}
               </ul>
             </div>
           </div>
