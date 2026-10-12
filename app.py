@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
 import re
@@ -35,6 +36,8 @@ TRACKING_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
 LOCAL_TRACKING_PATTERN = re.compile(r"^KN\s*([0-9]+)\s*[/_-]\s*([0-9]+)$", re.IGNORECASE)
 KN_PREFIX_PATTERN = re.compile(r"^KN[\s:_-]*(.+)$", re.IGNORECASE)
 KN_WITHOUT_ITEM_PATTERN = re.compile(r"^KN\s*([0-9]+)$", re.IGNORECASE)
+
+ORDER_NUMBER_PATTERN = re.compile(r"^K[0-9]+-[0-9]+$", re.IGNORECASE)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -213,6 +216,8 @@ def _decode_csv_upload(raw_bytes: bytes) -> tuple[str, str]:
     raise UnicodeDecodeError("csv", b"", 0, 1, "unable to decode CSV")
 
 def _canonical_tracking_number(value: str) -> Optional[str]:
+    if ORDER_NUMBER_PATTERN.fullmatch(value.strip()):
+        return value.strip().upper()
     match = LOCAL_TRACKING_PATTERN.fullmatch(value.strip())
     if not match:
         return None
@@ -687,11 +692,17 @@ def _lookup_local_delivery(tracking_or_ref: str) -> Optional[dict[str, Any]]:
     kn_payload = _extract_kn_payload(tracking_or_ref)
     normalised_kn_payload = _normalise_order_reference(kn_payload) if kn_payload else None
 
-    if not candidate and not candidate_without_item and not normalised_kn_payload:
-        return None
-
     with _get_db() as conn:
-        if candidate:
+        direct_row = conn.execute(
+            "SELECT * FROM deliveries WHERE UPPER(TRIM(tracking_number)) = ? "
+            "OR UPPER(TRIM(order_ref_no)) = ? "
+            "ORDER BY CASE WHEN UPPER(TRIM(tracking_number)) = ? THEN 0 ELSE 1 END, "
+            "tracking_number LIMIT 1",
+            (_normalise_order_reference(tracking_or_ref),) * 3,
+        ).fetchone()
+        if direct_row:
+            row = direct_row
+        elif candidate:
             row = conn.execute(
                 "SELECT * FROM deliveries WHERE tracking_number = ?", (candidate,)
             ).fetchone()
@@ -735,6 +746,7 @@ def _lookup_local_delivery(tracking_or_ref: str) -> Optional[dict[str, Any]]:
         "latest_tracking_event_type": row["latest_tracking_event_type"],
         "pdf_filename": row["pdf_filename"],
         "raw_data": raw_data,
+        "csv_fields": list(raw_data.items()) if "Order number" in raw_data else None,
     }
 
 
@@ -936,7 +948,7 @@ def admin():
                                 tracking_events, pdf_filename, raw_row_json, updated_at
                             ) VALUES (?, ?, '', '', '', '', '', '', '', '', '', '', '', '', ?, '{}', ?)
                             """,
-                            (tracking_number, tracking_number[2:], pdf_filename, now_iso),
+                            (tracking_number, tracking_number[2:] if tracking_number.startswith("KN") else tracking_number, pdf_filename, now_iso),
                         )
                         created_pdf_only += 1
 
@@ -972,9 +984,14 @@ def admin():
         except csv.Error:
             dialect = csv.excel
 
-        reader = csv.DictReader(lines, dialect=dialect)
+        reader = csv.DictReader(io.StringIO(csv_text, newline=""), dialect=dialect)
         if not reader.fieldnames:
             flash("The CSV headers could not be read.", "danger")
+            return redirect(url_for("admin"))
+
+        is_order_csv = "Order number" in reader.fieldnames
+        if not is_order_csv and "Job No/Item" not in reader.fieldnames:
+            flash("Unsupported CSV format. Expected Order number or Job No/Item headers.", "danger")
             return redirect(url_for("admin"))
 
         inserted = 0
@@ -983,13 +1000,13 @@ def admin():
 
         with _get_db() as conn:
             for row in reader:
-                job_no_item_raw = (row.get("Job No/Item") or "").strip()
+                job_no_item_raw = (row.get("Order number" if is_order_csv else "Job No/Item") or "").strip()
                 if not job_no_item_raw:
                     skipped += 1
                     continue
 
                 job_no_item = re.sub(r"\s+", "", job_no_item_raw)
-                tracking_number = f"KN{job_no_item}"
+                tracking_number = job_no_item.upper() if is_order_csv else f"KN{job_no_item}"
                 if not _canonical_tracking_number(tracking_number):
                     skipped += 1
                     continue
@@ -1004,21 +1021,33 @@ def admin():
                     pdf_filename = existing["pdf_filename"]
 
                 now_iso = datetime.utcnow().isoformat(timespec="seconds")
+                if is_order_csv:
+                    mapped_row = {
+                        "Order/Ref No": row.get("Customer Reference"),
+                        "Col Date": row.get("Order Start - Date"),
+                        "Qty": row.get("Quantity"),
+                        "Del Addr1": row.get("Order End - Address"),
+                        "Del Postcode": row.get("Order End - Postcode"),
+                        "Del Date": row.get("Order End - Date"),
+                        "Job Status": row.get("Consignment Status"),
+                    }
+                else:
+                    mapped_row = row
                 values = (
                     tracking_number,
                     job_no_item,
-                    (row.get("Order/Ref No") or "").strip(),
-                    (row.get("Date Added") or "").strip(),
-                    (row.get("Col Date") or "").strip(),
-                    (row.get("Qty") or "").strip(),
-                    (row.get("Del Cust Name") or "").strip(),
-                    (row.get("Del Addr1") or "").strip(),
-                    (row.get("Del Postcode") or "").strip(),
-                    (row.get("Del Date") or "").strip(),
-                    (row.get("Job Status") or "").strip(),
-                    (row.get("Latest Tracking Event Date Time") or "").strip(),
-                    (row.get("Latest Tracking Event Type") or "").strip(),
-                    (row.get("Tracking Events") or "").strip(),
+                    (mapped_row.get("Order/Ref No") or "").strip(),
+                    (mapped_row.get("Date Added") or "").strip(),
+                    (mapped_row.get("Col Date") or "").strip(),
+                    (mapped_row.get("Qty") or "").strip(),
+                    (mapped_row.get("Del Cust Name") or "").strip(),
+                    (mapped_row.get("Del Addr1") or "").strip(),
+                    (mapped_row.get("Del Postcode") or "").strip(),
+                    (mapped_row.get("Del Date") or "").strip(),
+                    (mapped_row.get("Job Status") or "").strip(),
+                    (mapped_row.get("Latest Tracking Event Date Time") or "").strip(),
+                    (mapped_row.get("Latest Tracking Event Type") or "").strip(),
+                    (mapped_row.get("Tracking Events") or "").strip(),
                     pdf_filename,
                     json.dumps(row),
                     now_iso,
